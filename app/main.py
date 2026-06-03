@@ -1,9 +1,9 @@
 from fastapi import FastAPI
 
-from app.schemas import HealthResponse
+from app.api.data import router as data_router
+from app.api.health import router as health_router
 
 app = FastAPI(title="KK2 ATG")
 
-@app.get("/health", response_model=HealthResponse)
-def health() -> HealthResponse:
-  return HealthResponse(status="ok")
+app.include_router(health_router)
+app.include_router(data_router)
