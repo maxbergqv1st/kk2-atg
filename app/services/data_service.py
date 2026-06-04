@@ -4,13 +4,6 @@ import pandas as pd
 
 from app import atg
 from app import db
-from app.data import store
-
-
-class NoDatasetError(Exception):
-    pass
-
-
 class AtgFetchError(Exception):
     def __init__(self, day: str, cause: Exception):
         self.day = day
@@ -20,13 +13,6 @@ class AtgFetchError(Exception):
 
 class NoDatabaseDataError(Exception):
     pass
-
-
-def _require_store() -> pd.DataFrame:
-    df = store.get()
-    if df is None:
-        raise NoDatasetError()
-    return df
 
 
 def fetch_and_store(days: int, dataset: str) -> pd.DataFrame:
@@ -51,7 +37,6 @@ def fetch_and_store(days: int, dataset: str) -> pd.DataFrame:
     if dataset == "horses":
         df = atg.build_horse_stats(df)
 
-    store.save(df)
     return df
 
 

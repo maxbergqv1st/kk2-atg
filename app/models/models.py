@@ -21,7 +21,6 @@ class UploadResponse(BaseModel):
             dtypes={col: str(dtype) for col, dtype in df.dtypes.items()},
         )
 
-
 class FetchRequest(BaseModel):
     days: int = 3
     dataset: Literal["starters", "horses"] = "starters"

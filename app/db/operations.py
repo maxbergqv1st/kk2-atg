@@ -21,6 +21,7 @@ def _clean(record: dict) -> dict:
             out[key] = value
     return out
 
+"""tar dfen med _clean funktionen och skickar till db  """
 
 def save_starters(df: pd.DataFrame) -> None:
     objects = [Starter(**_clean(rec)) for rec in df.to_dict(orient="records")]
