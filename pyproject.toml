@@ -12,6 +12,8 @@ dependencies = [
     "requests>=2.34.2",
     "sqlalchemy>=2.0.50",
     "uvicorn[standard]>=0.48.0",
+    "transformers>=4.45.0",
+    "torch>=2.0.0",
 ]
 
 [dependency-groups]
