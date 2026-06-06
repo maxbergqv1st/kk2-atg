@@ -24,3 +24,14 @@ class UploadResponse(BaseModel):
 class FetchRequest(BaseModel):
     days: int = 3
     dataset: Literal["starters", "horses"] = "starters"
+
+
+class AiRequest(BaseModel):
+    question: str
+
+
+class AiResponse(BaseModel):
+    question: str
+    intent: str
+    answer: str
+    model: str
