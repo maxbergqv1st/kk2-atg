@@ -1,9 +1,8 @@
 from datetime import date, timedelta
-
 import pandas as pd
-
 from app import atg
 from app import db
+
 class AtgFetchError(Exception):
     def __init__(self, day: str, cause: Exception):
         self.day = day
