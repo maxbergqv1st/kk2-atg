@@ -82,6 +82,43 @@ def fetch_day_df(date_str: str) -> pd.DataFrame:
     return df
 
 
+def fetch_upcoming_starts(game_type: str, date_str: str) -> list[dict]:
+    """Hämtar kommande starter (utan resultat) för en speltyp och datum."""
+    calendar = _fetch(f"{BASE}/calendar/day/{date_str}")
+    gt_upper = game_type.upper()
+    game_stubs = calendar.get("games", {}).get(gt_upper, [])
+    if not game_stubs:
+        return []
+
+    entries: list[dict] = []
+    for stub in game_stubs:
+        game = _fetch(f"{BASE}/games/{stub['id']}")
+        for race in game.get("races", []):
+            rd = _fetch(f"{BASE}/races/{race['id']}")
+            track_name = (rd.get("track") or {}).get("name")
+            distance_m = rd.get("distance")
+            race_number = rd.get("number")
+            for start in rd.get("starts", []):
+                if start.get("scratched", False):
+                    continue
+                horse = start.get("horse", {})
+                driver = start.get("driver", {})
+                entries.append({
+                    "race_number": race_number,
+                    "track": track_name,
+                    "distance_m": distance_m,
+                    "post_position": start.get("number"),
+                    "horse_id": horse.get("id"),
+                    "horse_name": _normalize(horse.get("name")),
+                    "horse_age": horse.get("age"),
+                    "driver_id": driver.get("id"),
+                    "driver_name": _normalize(
+                        driver.get("firstName", "") + " " + driver.get("lastName", "")
+                    ),
+                })
+    return entries
+
+
 def build_horse_stats(df: pd.DataFrame) -> pd.DataFrame:
     """Aggregerar starter till statistik per häst (motsv. horses.csv)."""
     active = df[~df["scratched"]].dropna(subset=["horse_id"])
