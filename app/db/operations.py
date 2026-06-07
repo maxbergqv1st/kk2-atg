@@ -5,8 +5,6 @@ from sqlalchemy import func
 from app.db.schema import SessionLocal, Starter
 
 
-"""_clean: sql tar inte np värden. Konverterar till vanliga python typer"""
-
 def _clean(record: dict) -> dict:
     out: dict = {}
     for key, value in record.items():
@@ -21,8 +19,6 @@ def _clean(record: dict) -> dict:
         else:
             out[key] = value
     return out
-
-"""tar dfen med _clean funktionen och skickar till db  """
 
 def save_starters(df: pd.DataFrame) -> None:
     objects = [Starter(**_clean(rec)) for rec in df.to_dict(orient="records")]
@@ -75,7 +71,7 @@ def load_all() -> pd.DataFrame:
         columns = [c.name for c in Starter.__table__.columns]
         records = [{col: getattr(row, col) for col in columns} for row in rows]
     df = pd.DataFrame(records).drop(columns=["id"], errors="ignore")
-    df["date"] = pd.to_datetime(df["date"])
+    df["date"] = pd.to_datetime(df["date"]).dt.date
     return df
 
 
@@ -109,6 +105,63 @@ def load_horse_stats(horse_name: str | None = None) -> pd.DataFrame:
 
 def load_driver_stats(driver_name: str | None = None) -> pd.DataFrame:
     return _query_entity_stats(Starter.driver_id, Starter.driver_name, driver_name)
+
+
+def load_horse_stats_by_ids(horse_ids: list[int], track: str | None = None) -> dict[int, dict]:
+    with SessionLocal() as session:
+        query = (
+            session.query(
+                Starter.horse_id,
+                func.count(Starter.won).label("starts"),
+                func.sum(Starter.won).label("wins"),
+                func.avg(Starter.odds).label("avg_odds"),
+                func.avg(Starter.finish_position).label("avg_position"),
+            )
+            .filter(Starter.scratched == False, Starter.horse_id.in_(horse_ids))
+        )
+        if track:
+            query = query.filter(func.lower(Starter.track) == track.lower())
+        rows = query.group_by(Starter.horse_id).all()
+
+    result: dict[int, dict] = {}
+    for row in rows:
+        starts = row.starts or 0
+        wins = int(row.wins or 0)
+        result[row.horse_id] = {
+            "starts": starts,
+            "wins": wins,
+            "win_pct": round(wins / starts * 100, 1) if starts else 0.0,
+            "avg_odds": round(float(row.avg_odds), 1) if row.avg_odds else None,
+            "avg_position": round(float(row.avg_position), 1) if row.avg_position else None,
+        }
+    return result
+
+
+def load_driver_stats_by_ids(driver_ids: list[int]) -> dict[int, dict]:
+    with SessionLocal() as session:
+        rows = (
+            session.query(
+                Starter.driver_id,
+                Starter.driver_name,
+                func.count(Starter.won).label("starts"),
+                func.sum(Starter.won).label("wins"),
+            )
+            .filter(Starter.scratched == False, Starter.driver_id.in_(driver_ids))
+            .group_by(Starter.driver_id)
+            .all()
+        )
+
+    result: dict[int, dict] = {}
+    for row in rows:
+        starts = row.starts or 0
+        wins = int(row.wins or 0)
+        result[row.driver_id] = {
+            "driver_name": row.driver_name,
+            "starts": starts,
+            "wins": wins,
+            "win_pct": round(wins / starts * 100, 1) if starts else 0.0,
+        }
+    return result
 
 
 def load_recent_starts(horse_name: str, limit: int = 10) -> list[dict]:
