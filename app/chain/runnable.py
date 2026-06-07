@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import Any, Callable
+from typing import Any, Callable, Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict
 
+I = TypeVar("I")
+O = TypeVar("O")
 
-class Runnable(BaseModel):
+
+class Runnable(BaseModel, Generic[I, O]):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @abstractmethod
-    def invoke(self, data: Any) -> Any: ...
+    def invoke(self, data: I) -> O: ...
 
     def __or__(self, other: Runnable) -> RunnableSequence:
         left = self.steps if isinstance(self, RunnableSequence) else [self]
@@ -23,14 +26,14 @@ class Runnable(BaseModel):
         return RunnableSequence(steps=left + right)
 
 
-class RunnableLambda(Runnable):
-    func: Callable[[Any], Any]
+class RunnableLambda(Runnable[I, O]):
+    func: Callable[[I], O]
 
-    def invoke(self, data: Any) -> Any:
+    def invoke(self, data: I) -> O:
         return self.func(data)
 
 
-class RunnableSequence(Runnable):
+class RunnableSequence(Runnable[Any, Any]):
     steps: list[Runnable]
 
     def invoke(self, data: Any) -> Any:
