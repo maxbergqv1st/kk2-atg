@@ -1,12 +1,15 @@
 import io
+import logging
 
 import pandas as pd
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, HTTPException, Request, UploadFile
 
-from app.models.models import FetchRequest, UploadResponse
+from app.models.models import FetchRequest, UpcomingGameResponse, UpcomingRequest, UploadResponse
 from app.services.data_service import (
     AtgFetchError,
     NoDatabaseDataError,
+    UpcomingGameNotFoundError,
+    analyze_upcoming,
     fetch_and_store,
     get_count,
     get_dates,
@@ -15,28 +18,34 @@ from app.services.data_service import (
     get_stats,
 )
 
-router = APIRouter(prefix="/data", tags=["data"])
+logger = logging.getLogger(__name__)
 
-_uploaded_df: pd.DataFrame | None = None
+router = APIRouter(prefix="/data", tags=["data"])
 
 
 @router.post("/upload", response_model=UploadResponse)
-async def upload_csv(file: UploadFile) -> UploadResponse:
-    global _uploaded_df
-
+async def upload_csv(file: UploadFile, request: Request) -> UploadResponse:
     if not file.filename or not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Filen maste vara en CSV-fil (.csv)")
 
     contents = await file.read()
     if not contents:
+        logger.warning("Tom fil uppladdad: %s", file.filename)
         raise HTTPException(status_code=400, detail="Filen ar tom")
+
+    max_size = 10 * 1024 * 1024  # 10 MB
+    if len(contents) > max_size:
+        logger.warning("For stor fil: %s (%d bytes)", file.filename, len(contents))
+        raise HTTPException(status_code=400, detail="Filen ar for stor (max 10 MB)")
 
     try:
         df = pd.read_csv(io.BytesIO(contents))
     except Exception:
+        logger.warning("Ogiltig CSV: %s", file.filename)
         raise HTTPException(status_code=400, detail="Kunde inte lasa CSV-filen")
 
-    _uploaded_df = df
+    request.app.state.uploaded_df = df
+    logger.info("CSV uppladdad: %s (%d rader)", file.filename, len(df))
     return UploadResponse.from_dataframe(df)
 
 
@@ -70,10 +79,27 @@ def fetch_data(req: FetchRequest) -> UploadResponse:
     return UploadResponse.from_dataframe(df)
 
 
+@router.post("/upcoming", response_model=UpcomingGameResponse)
+def upcoming_game(req: UpcomingRequest) -> UpcomingGameResponse:
+    try:
+        return analyze_upcoming(req.game_type, req.date)
+    except UpcomingGameNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Inget {req.game_type}-spel hittades for {req.date}",
+        )
+    except AtgFetchError as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"ATG-hamtning misslyckades: {e.cause}",
+        )
+
+
 @router.get("/stats")
-def data_stats() -> dict:
-    if _uploaded_df is not None:
-        return _uploaded_df.describe().to_dict()
+def data_stats(request: Request) -> dict:
+    uploaded_df = getattr(request.app.state, "uploaded_df", None)
+    if uploaded_df is not None:
+        return uploaded_df.describe().to_dict()
     try:
         return get_stats()
     except NoDatabaseDataError:
