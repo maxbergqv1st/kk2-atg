@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KK2 ATG</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; line-height: 1.6; }
+    header { background: #1e293b; padding: 1.5rem 2rem; border-bottom: 2px solid #334155; }
+    header h1 { font-size: 1.5rem; color: #f8fafc; }
+    header p { color: #94a3b8; font-size: 0.9rem; }
+    .container { max-width: 900px; margin: 0 auto; padding: 1.5rem; }
+    .section { background: #1e293b; border-radius: 8px; margin-bottom: 1rem; border: 1px solid #334155; }
+    .section-header { padding: 1rem 1.25rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+    .section-header:hover { background: #334155; border-radius: 8px; }
+    .section-header h2 { font-size: 1rem; color: #f8fafc; }
+    .method { font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; }
+    .method-get { background: #065f46; color: #6ee7b7; }
+    .method-post { background: #92400e; color: #fbbf24; }
+    .section-body { padding: 0 1.25rem 1.25rem; display: none; }
+    .section.open .section-body { display: block; }
+    .section.open .arrow { transform: rotate(90deg); }
+    .arrow { color: #64748b; transition: transform 0.2s; }
+    label { display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.25rem; margin-top: 0.75rem; }
+    input, select, textarea { width: 100%; padding: 0.5rem; background: #0f172a; border: 1px solid #475569; border-radius: 4px; color: #e2e8f0; font-size: 0.9rem; }
+    textarea { min-height: 60px; resize: vertical; }
+    input[type="file"] { padding: 0.4rem; }
+    button { margin-top: 1rem; padding: 0.5rem 1.25rem; background: #2563eb; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem; }
+    button:hover { background: #1d4ed8; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .result { margin-top: 1rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px; padding: 1rem; font-family: monospace; font-size: 0.85rem; white-space: pre-wrap; word-break: break-word; max-height: 400px; overflow-y: auto; }
+    .status { font-size: 0.8rem; margin-top: 0.5rem; }
+    .status-ok { color: #6ee7b7; }
+    .status-err { color: #f87171; }
+    .row { display: flex; gap: 1rem; }
+    .row > * { flex: 1; }
+    .health-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 0.5rem; }
+    .health-ok { background: #22c55e; }
+    .health-err { background: #ef4444; }
+    .health-unknown { background: #64748b; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1><span class="health-dot health-unknown" id="healthDot"></span> KK2 ATG</h1>
+  <p>Svensk travanalys med SmolLM</p>
+</header>
+
+<div class="container">
+
+  <!-- Health -->
+  <div class="section open">
+    <div class="section-header" onclick="toggle(this)">
+      <h2><span class="method method-get">GET</span> /health</h2>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="section-body">
+      <button onclick="callHealth()">Kolla status</button>
+      <div class="result" id="healthResult"></div>
+    </div>
+  </div>
+
+  <!-- Upload CSV -->
+  <div class="section">
+    <div class="section-header" onclick="toggle(this)">
+      <h2><span class="method method-post">POST</span> /data/upload</h2>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="section-body">
+      <label>CSV-fil</label>
+      <input type="file" id="csvFile" accept=".csv">
+      <button onclick="callUpload()">Ladda upp</button>
+      <div class="result" id="uploadResult"></div>
+    </div>
+  </div>
+
+  <!-- Fetch ATG -->
+  <div class="section">
+    <div class="section-header" onclick="toggle(this)">
+      <h2><span class="method method-post">POST</span> /data/fetch</h2>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="section-body">
+      <div class="row">
+        <div>
+          <label>Antal dagar</label>
+          <input type="number" id="fetchDays" value="3" min="1">
+        </div>
+        <div>
+          <label>Dataset</label>
+          <select id="fetchDataset">
+            <option value="starters">starters</option>
+            <option value="horses">horses</option>
+          </select>
+        </div>
+      </div>
+      <button onclick="callFetch()">Hamta fran ATG</button>
+      <div class="result" id="fetchResult"></div>
+    </div>
+  </div>
+
+  <!-- Count -->
+  <div class="section">
+    <div class="section-header" onclick="toggle(this)">
+      <h2><span class="method method-get">GET</span> /data/count</h2>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="section-body">
+      <button onclick="callSimple('/data/count', 'countResult')">Antal rader</button>
+      <div class="result" id="countResult"></div>
+    </div>
+  </div>
+
+  <!-- Dates -->
+  <div class="section">
+    <div class="section-header" onclick="toggle(this)">
+      <h2><span class="method method-get">GET</span> /data/dates</h2>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="section-body">
+      <button onclick="callSimple('/data/dates', 'datesResult')">Visa datum</button>
+      <div class="result" id="datesResult"></div>
+    </div>
+  </div>
+
+  <!-- Starters -->
+  <div class="section">
+    <div class="section-header" onclick="toggle(this)">
+      <h2><span class="method method-get">GET</span> /data/starters</h2>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="section-body">
+      <label>Limit</label>
+      <input type="number" id="startersLimit" value="10" min="1">
+      <button onclick="callSimple('/data/starters?limit=' + document.getElementById('startersLimit').value, 'startersResult')">Visa starter</button>
+      <div class="result" id="startersResult"></div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="section">
+    <div class="section-header" onclick="toggle(this)">
+      <h2><span class="method method-get">GET</span> /data/stats</h2>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="section-body">
+      <button onclick="callSimple('/data/stats', 'statsResult')">Visa statistik</button>
+      <div class="result" id="statsResult"></div>
+    </div>
+  </div>
+
+  <!-- Preview -->
+  <div class="section">
+    <div class="section-header" onclick="toggle(this)">
+      <h2><span class="method method-get">GET</span> /data/preview</h2>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="section-body">
+      <label>Antal rader</label>
+      <input type="number" id="previewN" value="5" min="1">
+      <button onclick="callSimple('/data/preview?n=' + document.getElementById('previewN').value, 'previewResult')">Forhandsgranska</button>
+      <div class="result" id="previewResult"></div>
+    </div>
+  </div>
+
+  <!-- Upcoming -->
+  <div class="section">
+    <div class="section-header" onclick="toggle(this)">
+      <h2><span class="method method-post">POST</span> /data/upcoming</h2>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="section-body">
+      <div class="row">
+        <div>
+          <label>Speltyp</label>
+          <select id="upcomingType">
+            <option value="V86">V86</option>
+            <option value="V85">V85</option>
+            <option value="V75">V75</option>
+            <option value="V64">V64</option>
+          </select>
+        </div>
+        <div>
+          <label>Datum</label>
+          <input type="date" id="upcomingDate" value="2026-06-10">
+        </div>
+      </div>
+      <button onclick="callUpcoming()">Analysera</button>
+      <div class="result" id="upcomingResult"></div>
+    </div>
+  </div>
+
+  <!-- AI Ask -->
+  <div class="section">
+    <div class="section-header" onclick="toggle(this)">
+      <h2><span class="method method-post">POST</span> /ai/ask</h2>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="section-body">
+      <label>Fråga</label>
+      <textarea id="aiQuestion" placeholder="T.ex. Vilken häst har bäst vinstprocent?"></textarea>
+      <button onclick="callAiAsk()">Fråga AI</button>
+      <div class="result" id="aiResult"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function toggle(header) {
+    header.parentElement.classList.toggle('open');
+  }
+
+  function show(id, data, ok) {
+    const el = document.getElementById(id);
+    el.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+    el.style.borderColor = ok ? '#334155' : '#991b1b';
+  }
+
+  async function api(method, path, body, resultId) {
+    const btn = document.querySelector(`#${resultId}`).previousElementSibling;
+    if (btn) btn.disabled = true;
+    show(resultId, 'Laddar...', true);
+    try {
+      const opts = { method };
+      if (body instanceof FormData) {
+        opts.body = body;
+      } else if (body) {
+        opts.headers = { 'Content-Type': 'application/json' };
+        opts.body = JSON.stringify(body);
+      }
+      const res = await fetch(path, opts);
+      const data = await res.json();
+      show(resultId, data, res.ok);
+    } catch (e) {
+      show(resultId, 'Fel: ' + e.message, false);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function callHealth() {
+    const res = await fetch('/health');
+    const data = await res.json();
+    show('healthResult', data, res.ok);
+    const dot = document.getElementById('healthDot');
+    dot.className = 'health-dot ' + (res.ok ? 'health-ok' : 'health-err');
+  }
+
+  function callSimple(path, resultId) {
+    api('GET', path, null, resultId);
+  }
+
+  function callUpload() {
+    const file = document.getElementById('csvFile').files[0];
+    if (!file) { show('uploadResult', 'Valj en fil forst.', false); return; }
+    const fd = new FormData();
+    fd.append('file', file);
+    api('POST', '/data/upload', fd, 'uploadResult');
+  }
+
+  function callFetch() {
+    api('POST', '/data/fetch', {
+      days: parseInt(document.getElementById('fetchDays').value),
+      dataset: document.getElementById('fetchDataset').value,
+    }, 'fetchResult');
+  }
+
+  function callUpcoming() {
+    api('POST', '/data/upcoming', {
+      game_type: document.getElementById('upcomingType').value,
+      date: document.getElementById('upcomingDate').value,
+    }, 'upcomingResult');
+  }
+
+  function callAiAsk() {
+    const q = document.getElementById('aiQuestion').value.trim();
+    if (!q) { show('aiResult', 'Skriv en fraga forst.', false); return; }
+    api('POST', '/ai/ask', { question: q }, 'aiResult');
+  }
+
+  // Check health on load
+  callHealth();
+</script>
+</body>
+</html>
