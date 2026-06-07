@@ -35,3 +35,56 @@ class AiResponse(BaseModel):
     intent: str
     answer: str
     model: str
+
+
+class UpcomingRequest(BaseModel):
+    game_type: Literal["V64", "V75", "V85", "V86"] = "V86"
+    date: str = "2026-06-10"
+
+
+class HorseOverallStats(BaseModel):
+    starts: int
+    wins: int
+    win_pct: float
+    avg_odds: float | None
+    avg_position: float | None
+
+
+class HorseTrackStats(BaseModel):
+    track: str
+    starts: int
+    wins: int
+    win_pct: float
+    avg_position: float | None
+
+
+class DriverOverallStats(BaseModel):
+    driver_name: str
+    starts: int
+    wins: int
+    win_pct: float
+
+
+class HorseAnalysis(BaseModel):
+    post_position: int | None
+    horse_name: str | None
+    horse_age: float | None
+    driver_name: str | None
+    overall: HorseOverallStats | None
+    track: HorseTrackStats | None
+    driver: DriverOverallStats | None
+
+
+class RaceAnalysis(BaseModel):
+    race_number: int | None
+    track: str | None
+    distance_m: float | None
+    starters: list[HorseAnalysis]
+
+
+class UpcomingGameResponse(BaseModel):
+    game_type: str
+    date: str
+    races: list[RaceAnalysis]
+    total_horses: int
+    horses_with_history: int
