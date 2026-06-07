@@ -75,50 +75,46 @@ def load_all() -> pd.DataFrame:
     return df
 
 
-def _query_entity_stats(id_col, name_col, name_filter: str | None = None) -> pd.DataFrame:
+def lookup_horse_id(name: str) -> int | None:
     with SessionLocal() as session:
-        query = (
-            session.query(
-                id_col.label("entity_id"),
-                name_col.label("name"),
-                func.count(Starter.won).label("starts"),
-                func.sum(Starter.won).label("wins"),
-                func.avg(Starter.odds).label("avg_odds"),
-                func.avg(Starter.finish_position).label("avg_position"),
-            )
-            .filter(Starter.scratched == False, id_col.isnot(None))
+        row = (
+            session.query(Starter.horse_id)
+            .filter(func.lower(Starter.horse_name) == name.lower(), Starter.horse_id.isnot(None))
+            .order_by(Starter.date.desc())
+            .first()
         )
-        if name_filter:
-            query = query.filter(func.lower(name_col) == name_filter.lower())
-        rows = query.group_by(id_col).all()
-
-    if not rows:
-        return pd.DataFrame()
-    df = pd.DataFrame(rows, columns=["entity_id", "name", "starts", "wins", "avg_odds", "avg_position"])
-    df["win_pct"] = (df["wins"] / df["starts"] * 100).round(1)
-    return df.sort_values("starts", ascending=False)
+        return row[0] if row else None
 
 
-def load_horse_stats(horse_name: str | None = None) -> pd.DataFrame:
-    return _query_entity_stats(Starter.horse_id, Starter.horse_name, horse_name)
+def lookup_driver_id(name: str) -> int | None:
+    with SessionLocal() as session:
+        row = (
+            session.query(Starter.driver_id)
+            .filter(func.lower(Starter.driver_name) == name.lower(), Starter.driver_id.isnot(None))
+            .order_by(Starter.date.desc())
+            .first()
+        )
+        return row[0] if row else None
 
 
-def load_driver_stats(driver_name: str | None = None) -> pd.DataFrame:
-    return _query_entity_stats(Starter.driver_id, Starter.driver_name, driver_name)
-
-
-def load_horse_stats_by_ids(horse_ids: list[int], track: str | None = None) -> dict[int, dict]:
+def load_horse_stats(
+    horse_ids: list[int] | None = None,
+    track: str | None = None,
+) -> dict[int, dict]:
     with SessionLocal() as session:
         query = (
             session.query(
                 Starter.horse_id,
+                Starter.horse_name,
                 func.count(Starter.won).label("starts"),
                 func.sum(Starter.won).label("wins"),
                 func.avg(Starter.odds).label("avg_odds"),
                 func.avg(Starter.finish_position).label("avg_position"),
             )
-            .filter(Starter.scratched == False, Starter.horse_id.in_(horse_ids))
+            .filter(Starter.scratched == False, Starter.horse_id.isnot(None))
         )
+        if horse_ids is not None:
+            query = query.filter(Starter.horse_id.in_(horse_ids))
         if track:
             query = query.filter(func.lower(Starter.track) == track.lower())
         rows = query.group_by(Starter.horse_id).all()
@@ -128,28 +124,30 @@ def load_horse_stats_by_ids(horse_ids: list[int], track: str | None = None) -> d
         starts = row.starts or 0
         wins = int(row.wins or 0)
         result[row.horse_id] = {
+            "name": row.horse_name,
             "starts": starts,
             "wins": wins,
             "win_pct": round(wins / starts * 100, 1) if starts else 0.0,
             "avg_odds": round(float(row.avg_odds), 1) if row.avg_odds else None,
             "avg_position": round(float(row.avg_position), 1) if row.avg_position else None,
         }
-    return result
+    return dict(sorted(result.items(), key=lambda x: x[1]["starts"], reverse=True))
 
 
-def load_driver_stats_by_ids(driver_ids: list[int]) -> dict[int, dict]:
+def load_driver_stats(driver_ids: list[int] | None = None) -> dict[int, dict]:
     with SessionLocal() as session:
-        rows = (
+        query = (
             session.query(
                 Starter.driver_id,
                 Starter.driver_name,
                 func.count(Starter.won).label("starts"),
                 func.sum(Starter.won).label("wins"),
             )
-            .filter(Starter.scratched == False, Starter.driver_id.in_(driver_ids))
-            .group_by(Starter.driver_id)
-            .all()
+            .filter(Starter.scratched == False, Starter.driver_id.isnot(None))
         )
+        if driver_ids is not None:
+            query = query.filter(Starter.driver_id.in_(driver_ids))
+        rows = query.group_by(Starter.driver_id).all()
 
     result: dict[int, dict] = {}
     for row in rows:
@@ -161,14 +159,14 @@ def load_driver_stats_by_ids(driver_ids: list[int]) -> dict[int, dict]:
             "wins": wins,
             "win_pct": round(wins / starts * 100, 1) if starts else 0.0,
         }
-    return result
+    return dict(sorted(result.items(), key=lambda x: x[1]["starts"], reverse=True))
 
 
-def load_recent_starts(horse_name: str, limit: int = 10) -> list[dict]:
+def load_recent_starts(horse_id: int, limit: int = 10) -> list[dict]:
     with SessionLocal() as session:
         rows = (
             session.query(Starter)
-            .filter(func.lower(Starter.horse_name) == horse_name.lower())
+            .filter(Starter.horse_id == horse_id)
             .order_by(Starter.date.desc())
             .limit(limit)
             .all()
